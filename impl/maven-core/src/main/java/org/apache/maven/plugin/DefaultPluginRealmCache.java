@@ -173,14 +173,17 @@ public class DefaultPluginRealmCache implements PluginRealmCache, Disposable {
 
     @Override
     public CacheRecord put(Key key, ClassRealm pluginRealm, List<Artifact> pluginArtifacts) {
-        Objects.requireNonNull(pluginRealm, "pluginRealm cannot be null");
-        Objects.requireNonNull(pluginArtifacts, "pluginArtifacts cannot be null");
+        return put(key, new CacheRecord(pluginRealm, pluginArtifacts));
+    }
+
+    @Override
+    public CacheRecord put(Key key, CacheRecord record) {
+        Objects.requireNonNull(record.getRealm(), "pluginRealm cannot be null");
+        Objects.requireNonNull(record.getArtifacts(), "pluginArtifacts cannot be null");
 
         if (cache.containsKey(key)) {
             throw new IllegalStateException("Duplicate plugin realm for plugin " + key);
         }
-
-        CacheRecord record = new CacheRecord(pluginRealm, pluginArtifacts);
 
         cache.put(key, record);
 

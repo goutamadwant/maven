@@ -27,6 +27,7 @@ import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.classworlds.realm.ClassRealm;
 import org.eclipse.aether.RepositorySystemSession;
 import org.eclipse.aether.graph.DependencyFilter;
+import org.eclipse.aether.graph.DependencyNode;
 import org.eclipse.aether.repository.RemoteRepository;
 
 /**
@@ -48,13 +49,24 @@ public interface PluginRealmCache {
             return artifacts;
         }
 
+        public DependencyNode getDependencyNode() {
+            return dependencyNode;
+        }
+
         private final ClassRealm realm;
 
         private final List<Artifact> artifacts;
 
+        private volatile DependencyNode dependencyNode;
+
         public CacheRecord(ClassRealm realm, List<Artifact> artifacts) {
+            this(realm, artifacts, null);
+        }
+
+        public CacheRecord(ClassRealm realm, List<Artifact> artifacts, DependencyNode dependencyNode) {
             this.realm = realm;
             this.artifacts = artifacts;
+            this.dependencyNode = dependencyNode;
         }
     }
 
@@ -82,15 +94,24 @@ public interface PluginRealmCache {
 
     default CacheRecord get(Key key, PluginRealmSupplier supplier)
             throws PluginResolutionException, PluginContainerException {
-        CacheRecord cr = get(key);
-        if (cr == null) {
-            CacheRecord tcr = supplier.load();
-            cr = put(key, tcr.getRealm(), tcr.getArtifacts());
+        synchronized (this) {
+            CacheRecord cr = get(key);
+            if (cr == null) {
+                cr = put(key, supplier.load());
+            }
+            return cr;
         }
-        return cr;
     }
 
     CacheRecord put(Key key, ClassRealm pluginRealm, List<Artifact> pluginArtifacts);
+
+    default CacheRecord put(Key key, CacheRecord record) {
+        CacheRecord cached = put(key, record.getRealm(), record.getArtifacts());
+        if (cached.dependencyNode == null) {
+            cached.dependencyNode = record.getDependencyNode();
+        }
+        return cached;
+    }
 
     void flush();
 

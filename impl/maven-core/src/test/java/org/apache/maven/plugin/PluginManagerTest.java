@@ -27,6 +27,8 @@ import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.repository.DefaultRepositoryRequest;
 import org.apache.maven.artifact.repository.RepositoryRequest;
 import org.apache.maven.execution.MavenSession;
+import org.apache.maven.internal.impl.DefaultMojoExecution;
+import org.apache.maven.internal.impl.InternalMavenSession;
 import org.apache.maven.model.Plugin;
 import org.apache.maven.plugin.descriptor.MojoDescriptor;
 import org.apache.maven.plugin.descriptor.PluginDescriptor;
@@ -36,7 +38,9 @@ import org.codehaus.plexus.component.repository.ComponentDescriptor;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.fail;
 
 class PluginManagerTest extends AbstractCoreMavenComponentTestCase {
@@ -140,7 +144,15 @@ class PluginManagerTest extends AbstractCoreMavenComponentTestCase {
 
         PluginDescriptor pluginDescriptor = pluginManager.loadPlugin(
                 plugin, session.getCurrentProject().getRemotePluginRepositories(), session.getRepositorySession());
-        pluginManager.getPluginRealm(session, pluginDescriptor);
+        ClassRealm firstRealm = pluginManager.getPluginRealm(session, pluginDescriptor);
+
+        var firstDependencies = new DefaultMojoExecution(
+                        InternalMavenSession.from(session.getSession()),
+                        new MojoExecution(pluginDescriptor.getMojos().get(0)))
+                .getPlugin()
+                .getDependenciesMap();
+        assertFalse(firstDependencies.isEmpty());
+        assertNotNull(pluginDescriptor.getDependencyNode());
 
         assertEquals(1, pluginDescriptor.getDependencies().size());
 
@@ -156,7 +168,15 @@ class PluginManagerTest extends AbstractCoreMavenComponentTestCase {
 
         pluginDescriptor = pluginManager.loadPlugin(
                 plugin, session.getCurrentProject().getRemotePluginRepositories(), session.getRepositorySession());
-        pluginManager.getPluginRealm(session, pluginDescriptor);
+        ClassRealm cachedRealm = pluginManager.getPluginRealm(session, pluginDescriptor);
+        assertSame(firstRealm, cachedRealm);
+
+        var cachedDependencies = new DefaultMojoExecution(
+                        InternalMavenSession.from(session.getSession()),
+                        new MojoExecution(pluginDescriptor.getMojos().get(0)))
+                .getPlugin()
+                .getDependenciesMap();
+        assertEquals(firstDependencies.keySet(), cachedDependencies.keySet());
 
         assertEquals(1, pluginDescriptor.getDependencies().size());
 
